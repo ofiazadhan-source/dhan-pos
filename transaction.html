@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactions - DHAN SIOMAI POS</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* {margin:0; padding:0; box-sizing:border-box; font-family:'Poppins', sans-serif;}
+body {background:#f5f5f5; padding:20px;}
+.container {max-width:900px; margin:0 auto;}
+.header {display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;}
+.header h1 {color:#ff6b35; font-size:22px;}
+.btn {padding:10px 15px; border:none; border-radius:8px; font-weight:600; cursor:pointer;}
+.btn-export {background:#4CAF50; color:white;}
+.btn-clear {background:#f44336; color:white;}
+.btn-logout {background:#666; color:white;}
+.transaction {background:white; padding:15px; margin-bottom:12px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+.txn-header {display:flex; justify-content:space-between; margin-bottom:10px; font-size:14px;}
+.txn-id {font-weight:700; color:#ff6b35;}
+.txn-date {color:#666;}
+.txn-items {font-size:14px; margin-bottom:8px;}
+.txn-payment {background:#f9f9f9; padding:8px; border-radius:6px; font-size:13px;}
+.txn-total {text-align:right; font-weight:700; font-size:16px; margin-top:8px;}
+.search-box {width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:8px; font-size:16px;}
+.empty {text-align:center; padding:40px; color:#666;}
+.login-box {max-width:400px; margin:100px auto; background:white; padding:30px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15); text-align:center;}
+.login-box input {width:100%; padding:12px; margin:15px 0; border:1px solid #ddd; border-radius:8px; font-size:16px;}
+.login-box button {width:100%; padding:12px; background:#ff6b35; color:white; border:none; border-radius:8px; font-weight:700; font-size:16px; cursor:pointer;}
+.hidden {display:none;}
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="login-box">
+  <h2>🔒 Admin Login</h2>
+  <p style="color:#666; font-size:14px;">Enter password to view transactions</p>
+  <input type="password" id="passwordInput" placeholder="Enter password" onkeyup="if(event.key==='Enter') checkPassword()">
+  <button onclick="checkPassword()">Login</button>
+  <p id="errorMsg" style="color:red; font-size:13px; margin-top:10px; display:none;">Wrong password!</p>
+</div>
+
+<!-- Transactions Screen -->
+<div id="mainScreen" class="container hidden">
+  <div class="header">
+    <h1>📋 Transaction Log</h1>
+    <div>
+      <button class="btn btn-export" onclick="exportData()">📥 Export</button>
+      <button class="btn btn-clear" onclick="clearData()">🗑️ Clear</button>
+      <button class="btn btn-logout" onclick="logout()">🚪 Logout</button>
+    </div>
+  </div>
+
+  <input type="text" id="searchBox" class="search-box" placeholder="Search by ID, name, phone..." onkeyup="filterTransactions()">
+  <div id="transactionsList"></div>
+</div>
+
+<script>
+// CHANGE THIS PASSWORD
+const ADMIN_PASSWORD = "dhan123";
+
+let allTransactions = [];
+
+window.onload = function() {
+  // Check if already logged in
+  if(sessionStorage.getItem('loggedIn') === 'true') {
+    showMainScreen();
+  }
+}
+
+function checkPassword() {
+  let input = document.getElementById('passwordInput').value;
+  if(input === ADMIN_PASSWORD) {
+    sessionStorage.setItem('loggedIn', 'true');
+    showMainScreen();
+  } else {
+    document.getElementById('errorMsg').style.display = 'block';
+    document.getElementById('passwordInput').value = '';
+  }
+}
+
+function showMainScreen() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainScreen').classList.remove('hidden');
+  loadTransactions();
+}
+
+function logout() {
+  sessionStorage.removeItem('loggedIn');
+  location.reload();
+}
+
+function loadTransactions() {
+  allTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+  renderTransactions(allTransactions);
+}
+
+function renderTransactions(transactions) {
+  if(transactions.length === 0) {
+    document.getElementById('transactionsList').innerHTML = 
+      '<div class="empty">📭 Walang transactions pa</div>';
+    return;
+  }
+
+  let html = '';
+  transactions.forEach(txn => {
+    let itemsHtml = '';
+    Object.keys(txn.items).forEach(name => {
+      itemsHtml += `${name} x${txn.items[name]}<br>`;
+    });
+
+    let paymentHtml = '';
+    if(txn.payment.method === 'Cash') {
+      paymentHtml = `💵 Cash - Cash: ₱${txn.payment.cash}, Change: ₱${txn.payment.change}`;
+    } else if(txn.payment.method === 'GCash') {
+      paymentHtml = `📱 GCash - ${txn.payment.gcashName} / ${txn.payment.gcashNumber}`;
+    } else if(txn.payment.method === 'COD') {
+      paymentHtml = `🚚 COD - ${txn.payment.codName}<br>📍 ${txn.payment.codAddress}<br>📞 ${txn.payment.codPhone}`;
+    }
+
+    html += `
+      <div class="transaction">
+        <div class="txn-header">
+          <span class="txn-id">${txn.id}</span>
+          <span class="txn-date">${txn.date}</span>
+        </div>
+        <div class="txn-items">${itemsHtml}</div>
+        <div class="txn-payment">${paymentHtml}</div>
+        <div class="txn-total">Total: ₱${txn.total}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('transactionsList').innerHTML = html;
+}
+
+function filterTransactions() {
+  let search = document.getElementById('searchBox').value.toLowerCase();
+  let filtered = allTransactions.filter(txn => {
+    return txn.id.toLowerCase().includes(search) ||
+           JSON.stringify(txn).toLowerCase().includes(search);
+  });
+  renderTransactions(filtered);
+}
+
+function exportData() {
+  let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allTransactions, null, 2));
+  let downloadAnchorNode = document.createElement('a');
+  downloadAnchorNode.setAttribute("href", dataStr);
+  downloadAnchorNode.setAttribute("download", "transactions.json");
+  document.body.appendChild(downloadAnchorNode);
+  downloadAnchorNode.click();
+  downloadAnchorNode.remove();
+}
+
+function clearData() {
+  if(confirm("Burahin lahat ng transactions?")) {
+    localStorage.removeItem('transactions');
+    loadTransactions();
+  }
+}
+</script>
+</body>
+</html>
